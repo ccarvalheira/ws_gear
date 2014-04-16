@@ -17,6 +17,8 @@ import decimal
 
 import requests
 
+from gearman_servers import JOBSERVER_LIST
+
 
 def split_every(n, iterable):
     i = iter(iterable)
@@ -322,9 +324,9 @@ def on_job_exception(self, current_job, exc_info):
 GearmanWorker.on_job_exception = on_job_exception
 
 
-worker = GearmanWorker(["localhost"])
+worker = GearmanWorker(JOBSERVER_LIST)
 
-worker.set_client_id("cenasmaasdrasdadas")
+worker.set_client_id("working_on_the_djangoroad")
 
 worker.register_task("add", add)
 worker.register_task("pre_schedule", pre_schedule)
