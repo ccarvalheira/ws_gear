@@ -7,6 +7,7 @@ import aggregators
 
 from gearman import GearmanWorker
 from gearman import GearmanClient
+from gearman.worker import POLL_TIMEOUT_IN_SECONDS
 from cassandra.cluster import Cluster
 
 from itertools import islice
@@ -97,7 +98,7 @@ def pre_schedule(worker, job):
     diff = ht-lt
     
     #TODO change to some other value during production
-    batch_size = 5
+    batch_size = 10
     
     try:
         interval = task_js["interval_in_seconds"]
@@ -165,7 +166,7 @@ def pre_schedule(worker, job):
         dat["output_dataset"] = data["output_dataset"]
         dat["task_id"] = data["task_id"]
         dat["cassandra_nodes"] = data["cassandra_nodes"]
-        client = GearmanClient(["localhost"])
+        client = GearmanClient(JOBSERVER_LIST)
         try:
             interval = task_js["interval_in_seconds"]
             #is aggregation
@@ -320,9 +321,28 @@ def on_job_exception(self, current_job, exc_info):
     import traceback
     print str(traceback.print_exc(exc_info[2]))
     return False
+    
+def work(self, poll_timeout=POLL_TIMEOUT_IN_SECONDS):
+    """Loop indefinitely, complete tasks from all connections."""
+    continue_working = True
+    worker_connections = []
+    
+
+    def continue_while_connections_alive(any_activity):
+        return self.after_poll(any_activity)
+
+    # Shuffle our connections after the poll timeout
+    while continue_working:
+        worker_connections = self.establish_worker_connections()
+        continue_working = self.poll_connections_until_stopped(worker_connections, continue_while_connections_alive, timeout=poll_timeout)
+        print "continue_working"
+
+    # If we were kicked out of the worker loop, we should shutdown all our connections
+    for current_connection in worker_connections:
+        current_connection.close()
 
 GearmanWorker.on_job_exception = on_job_exception
-
+GearmanWorker.work = work
 
 worker = GearmanWorker(JOBSERVER_LIST)
 
