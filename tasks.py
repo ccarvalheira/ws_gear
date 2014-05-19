@@ -326,7 +326,7 @@ def work(self, poll_timeout=POLL_TIMEOUT_IN_SECONDS):
     """Loop indefinitely, complete tasks from all connections."""
     continue_working = True
     worker_connections = []
-    
+    task_counter = 0
 
     def continue_while_connections_alive(any_activity):
         return self.after_poll(any_activity)
@@ -334,8 +334,12 @@ def work(self, poll_timeout=POLL_TIMEOUT_IN_SECONDS):
     # Shuffle our connections after the poll timeout
     while continue_working:
         worker_connections = self.establish_worker_connections()
-        continue_working = self.poll_connections_until_stopped(worker_connections, continue_while_connections_alive, timeout=poll_timeout)
         print "continue_working"
+        task_counter +=1
+        continue_working = self.poll_connections_until_stopped(worker_connections, continue_while_connections_alive, timeout=poll_timeout)
+        if task_counter >= 10:
+            continue_working = False
+
 
     # If we were kicked out of the worker loop, we should shutdown all our connections
     for current_connection in worker_connections:
