@@ -1,6 +1,7 @@
 from __future__ import division
 
 import datetime
+import sys
 
 import calculators
 import aggregators
@@ -17,6 +18,7 @@ import json
 import decimal
 
 import requests
+#import statsd
 
 from gearman_servers import JOBSERVER_LIST
 
@@ -179,7 +181,9 @@ def pre_schedule(worker, job):
             dat["output_dimension"] = task_js["output_dimension"]
             client.submit_job("row_calculator", pickle.dumps(dat),background=True)
         
-        
+        #st = statsd.StatsClient("192.168.149.161",8125)
+        #st.incr("task_created")
+
         #update timestamps
         lt += datetime.timedelta(seconds=interval)+datetime.timedelta(microseconds=1)
         temp_ht += datetime.timedelta(seconds=interval)+datetime.timedelta(microseconds=1)
@@ -321,32 +325,24 @@ def on_job_exception(self, current_job, exc_info):
     import traceback
     print str(traceback.print_exc(exc_info[2]))
     return False
-    
-def work(self, poll_timeout=POLL_TIMEOUT_IN_SECONDS):
-    """Loop indefinitely, complete tasks from all connections."""
-    continue_working = True
-    worker_connections = []
-    task_counter = 0
 
-    def continue_while_connections_alive(any_activity):
-        return self.after_poll(any_activity)
+def on_job_execute(self, current_job):
+    try:
+        function_callback = self.worker_abilities[current_job.task]
+        job_result = function_callback(self, current_job)
+    except Exception:
+        return self.on_job_exception(current_job, sys.exc_info())
+    self.task_count +=1
+    if self.task_count >= 50:
+        print "max tasks reached. exiting"
+        sys.exit()
 
-    # Shuffle our connections after the poll timeout
-    while continue_working:
-        worker_connections = self.establish_worker_connections()
-        print "continue_working"
-        task_counter +=1
-        continue_working = self.poll_connections_until_stopped(worker_connections, continue_while_connections_alive, timeout=poll_timeout)
-        if task_counter >= 10:
-            continue_working = False
+    return self.on_job_complete(current_job, job_result)
 
 
-    # If we were kicked out of the worker loop, we should shutdown all our connections
-    for current_connection in worker_connections:
-        current_connection.close()
-
+GearmanWorker.task_count = 0
 GearmanWorker.on_job_exception = on_job_exception
-GearmanWorker.work = work
+GearmanWorker.on_job_execute = on_job_execute
 
 worker = GearmanWorker(JOBSERVER_LIST)
 
